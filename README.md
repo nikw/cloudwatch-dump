@@ -11,7 +11,9 @@ Just dump all the CloudWatch metrics.
 
 1. Get complete metrics list from [AWS CloudWatch](http://aws.amazon.com/cloudwatch/?nc2=h_ls) in the specified region.
 1. For all metrics, fetch ```Average``` and ```Sum``` values for each period within the specified interval.
-1. Print metric path, value and timestamp in **[Graphtie](http://graphite.readthedocs.org/en/latest/)-friendly** format
+1. Print metric path, value and timestamp in **[Graphite](http://graphite.readthedocs.org/en/latest/)-friendly** format
+1. Or write directly to [Influxdb](https://influxdb.com) with
+   [influxdb-python](https://github.com/influxdb/influxdb-python)
 
 ### Dependencies
 
@@ -19,6 +21,7 @@ Just dump all the CloudWatch metrics.
 - pytz
 - python-dateutil
 - boto
+- influxdb-python (for Influxdb output only)
 
 
 ### Installation

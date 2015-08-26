@@ -103,6 +103,40 @@ def print_data(data, ec2_names):
     m, s, v, t = data
     print('%s %.10f %d' % (metric_to_tag(m, s, ec2_names), v, t.to_local().epoch()))
 
+def write_data_to_influxdb(client, region, data, ec2_names, debug):
+    """
+    Write value of one datapoint to Influxdb.
+    """
+    m, s, v, t = data   #metric, statistic type, value, timestamp
+
+    if debug == True:
+        # This also happens to be a format you can feed directly into opentsdb
+        print "%s %d %d" % (m.name, t.to_local().epoch(), v),
+        print " statistic=%s" % (s),
+        print " namespace=%s" % (m.namespace),
+        for d in m.dimensions.keys():
+          if type(m.dimensions[d] == list):
+            print " [%s=%s]" % (d, ".".join(m.dimensions[d])),
+          else:
+            print " %s=%s" % (d, m.dimensions[d]),
+        print
+    for d in m.dimensions.keys():
+        json_body = [
+            {
+                "measurement": m.name,
+                "tags": {
+                    "statistic": s,
+                    "namespace": m.namespace,
+                    "region": region,
+                    d: ".".join(m.dimensions[d])
+                },
+                "time": t.epoch(),
+                "fields": {
+                    "value": v
+                }
+            }
+        ]
+        client.write_points(json_body, time_precision='s')
 
 def parse_args():
     """
@@ -135,6 +169,16 @@ def parse_args():
         '--check', action='store_true', dest='check', default=False,
         help='prints only the metrics and its statistics methods (default: False)'
     )
+    output_choices=['graphite-text', 'influxdb']
+    parser.add_option(
+        '--output', dest='output', default='graphite-text', type='choice',
+        choices=output_choices,
+        help='how to present results (choices: %s)' % (output_choices)
+    )
+    parser.add_option(
+        '--influxdb-database', dest='influxdb_database', default='cloudwatch', type='string',
+        help='if output is influxdb, the name of the influxdb database'
+    )
     return parser.parse_args()
 
 
@@ -166,9 +210,21 @@ def main():
         for q in query_params:
             print('will collect metric: %s' % (metric_to_tag(q[0], q[1], ec2_names)))
     else:
-        # fetch and print metrics statistics
-        for data in get_data(metrics, statistics_list, start, end, options.period):
-            print_data(data, ec2_names)
+        if options.output == 'graphite-text':
+            # fetch and print metrics statistics
+            for data in get_data(metrics, statistics_list, start, end, options.period):
+                print_data(data, ec2_names)
+        elif options.output == 'influxdb':
+            import influxdb
+            client = influxdb.InfluxDBClient('localhost', 8086, 'root', 'root', options.influxdb_database)
+            try:
+                client.create_database(options.influxdb_database)
+            except influxdb.exceptions.InfluxDBClientError:
+                pass
+            for data in get_data(metrics, statistics_list, start, end, options.period):
+                write_data_to_influxdb(client, options.region, data, ec2_names, False)
+        else:
+            raise Exception("Invalid output option", options.output)
     return 0
 
 
